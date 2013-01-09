@@ -1,8 +1,8 @@
 package toothpick
 
 import (
-	"regexp"
 	"fmt"
+	"regexp"
 )
 
 type Matcher interface {
@@ -11,7 +11,7 @@ type Matcher interface {
 
 type CachedMatcher struct {
 	Cache map[string]Result
-	M Matcher
+	M     Matcher
 }
 
 func (m CachedMatcher) Match(s string) Result {
@@ -29,7 +29,7 @@ type Annotate struct {
 
 func (a Annotate) Match(s string) Result {
 	if match := a.Matcher.Match(s); match != Failure {
-		return Annotated{ a.S, match }
+		return Annotated{a.S, match}
 	}
 	return Failure
 }
@@ -48,6 +48,7 @@ func (i Instruction) Match(s string) Result {
 type Many []Matcher
 
 type Or Many
+
 func (ms Or) Match(s string) Result {
 	for _, m := range ms {
 		matched := m.Match(s)
@@ -59,8 +60,9 @@ func (ms Or) Match(s string) Result {
 }
 
 type Seq Many
+
 func (ms Seq) Match(s string) Result {
-	matched := Multi{ }
+	matched := Multi{}
 	for _, m := range ms {
 		match := m.Match(s[matched.Count():])
 		if match == Failure {
@@ -71,9 +73,10 @@ func (ms Seq) Match(s string) Result {
 	return matched
 }
 
-type Rep struct { M Matcher }
+type Rep struct{ M Matcher }
+
 func (m Rep) Match(s string) Result {
-	matched := Multi{ }
+	matched := Multi{}
 	match := m.M.Match(s)
 	for match != Failure {
 		matched = append(matched, match)
@@ -82,8 +85,9 @@ func (m Rep) Match(s string) Result {
 	return matched
 }
 
-type Pair struct { A, B Matcher }
+type Pair struct{ A, B Matcher }
 type Maybe Pair
+
 func (m Maybe) Match(s string) Result {
 	a := m.A.Match(s)
 	if a == Failure {
@@ -93,10 +97,11 @@ func (m Maybe) Match(s string) Result {
 	if b == Failure {
 		return a
 	}
-	return Static{ a, a.Count() + b.Count() }
+	return Static{a, a.Count() + b.Count()}
 }
 
 type Precond Pair
+
 func (p Precond) Match(s string) Result {
 	a := p.A.Match(s)
 	if a == Failure {
@@ -106,6 +111,7 @@ func (p Precond) Match(s string) Result {
 }
 
 type Postcond Pair
+
 func (p Postcond) Match(s string) Result {
 	a := p.A.Match(s)
 	if a == Failure {
@@ -120,19 +126,18 @@ func (p Postcond) Match(s string) Result {
 
 type Rules map[string]Matcher
 type Grammar struct {
-	R Rules
+	R    Rules
 	Root string
 }
 
 func (r Rules) Use(s string) Matcher {
-	return MM(Promise{ r, s })
+	return MM(Promise{r, s})
 }
 
 func (r Rules) Set(s string, m Matcher) Matcher {
-	r[s] = Annotate{ m, s }
+	r[s] = Annotate{m, s}
 	return r[s]
 }
-
 
 func (g Grammar) Match(s string) Result {
 	return g.R[g.Root].Match(s)
@@ -146,4 +151,3 @@ type Promise struct {
 func (p Promise) Match(s string) Result {
 	return p.R[p.K].Match(s)
 }
-
