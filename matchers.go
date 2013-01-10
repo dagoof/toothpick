@@ -5,10 +5,12 @@ import (
 	"regexp"
 )
 
+// A Matcher consumes a string and returns a result
 type Matcher interface {
 	Match(string) Result
 }
 
+// Stores each successful match, acting as a memoized Matcher
 type CachedMatcher struct {
 	Cache map[string]Result
 	M     Matcher
@@ -22,6 +24,7 @@ func (m CachedMatcher) Match(s string) Result {
 	return m.Cache[s]
 }
 
+// A Matcher that returns Annotated Results using the given string
 type Annotate struct {
 	Matcher
 	S string
@@ -34,6 +37,8 @@ func (a Annotate) Match(s string) Result {
 	return Failure
 }
 
+// Regex matcher that only considers matches at the beginning of the provided
+// string
 type Instruction string
 
 func (i Instruction) Match(s string) Result {
@@ -47,8 +52,10 @@ func (i Instruction) Match(s string) Result {
 
 type Many []Matcher
 
+// A list of matchers to be applied to an input
 type Or Many
 
+// Returns the first Matcher to successfuly return a Result rather than Failure
 func (ms Or) Match(s string) Result {
 	for _, m := range ms {
 		matched := m.Match(s)
@@ -59,9 +66,11 @@ func (ms Or) Match(s string) Result {
 	return Failure
 }
 
-type Seq Many
+type Sequence Many
 
-func (ms Seq) Match(s string) Result {
+// Every Matcher in the sequence must successfuly match the input, returns the
+// Multi Result
+func (ms Sequence) Match(s string) Result {
 	matched := Multi{}
 	for _, m := range ms {
 		match := m.Match(s[matched.Count():])
@@ -73,9 +82,10 @@ func (ms Seq) Match(s string) Result {
 	return matched
 }
 
-type Rep struct{ M Matcher }
+type Repeated struct{ M Matcher }
 
-func (m Rep) Match(s string) Result {
+// Repeatedly attempts to match against a string, returning a Multi Result
+func (m Repeated) Match(s string) Result {
 	matched := Multi{}
 	match := m.M.Match(s)
 	for match != Failure {
@@ -85,23 +95,28 @@ func (m Rep) Match(s string) Result {
 	return matched
 }
 
-type Pair struct{ A, B Matcher }
-type Maybe Pair
+type Maybe struct{ Always, Sometimes Matcher }
 
+// Assuming the Always matcher succeeds, Maybe returns either the Result of
+// Always if Sometimes fails, or the Static combination of Always' and
+// Sometimes' Counts, along with Always' Result
 func (m Maybe) Match(s string) Result {
-	a := m.A.Match(s)
+	a := m.Always.Match(s)
 	if a == Failure {
 		return Failure
 	}
-	b := m.B.Match(s[a.Count():])
+	b := m.Sometimes.Match(s[a.Count():])
 	if b == Failure {
 		return a
 	}
 	return Static{a, a.Count() + b.Count()}
 }
 
+type Pair struct{ A, B Matcher }
+
 type Precond Pair
 
+// Assuming both Matchers succeed, the prior Matcher's Result is returned
 func (p Precond) Match(s string) Result {
 	a := p.A.Match(s)
 	if a == Failure {
@@ -112,6 +127,7 @@ func (p Precond) Match(s string) Result {
 
 type Postcond Pair
 
+// Assuming both Matchers succeed, the latter Matcher's Result is returned
 func (p Postcond) Match(s string) Result {
 	a := p.A.Match(s)
 	if a == Failure {
@@ -124,25 +140,35 @@ func (p Postcond) Match(s string) Result {
 	return a
 }
 
+// Rules is a container that allows for recursive access of terms in a grammar.
 type Rules map[string]Matcher
-type Grammar struct {
-	R    Rules
-	Root string
-}
 
-func (r Rules) Use(s string) Matcher {
-	return MM(Promise{r, s})
-}
+// Requesting a stored term through Use allows you to create mutually recursive
+// definitions. When you request a term, a promise is returned, which will
+// return the appropriate matcher only when the entire grammar is Matched
+// against
+func (r Rules) Use(s string) Matcher { return Promise{r, s} }
 
+// An alternate method of setting terms in a ruleset, where the added Matcher is
+// first converted to an Annotate object with the given key as the Annotate
+// string.
 func (r Rules) Set(s string, m Matcher) Matcher {
 	r[s] = Annotate{m, s}
 	return r[s]
+}
+
+// A complete grammar is composed of a set of Rules and a root term to start
+// matching based on
+type Grammar struct {
+	R    Rules
+	Root string
 }
 
 func (g Grammar) Match(s string) Result {
 	return g.R[g.Root].Match(s)
 }
 
+// A Promise holds a set of rules and a key to be evaluated when matched against
 type Promise struct {
 	R Rules
 	K string
