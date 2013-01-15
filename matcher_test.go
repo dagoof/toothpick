@@ -13,4 +13,3 @@ func TestInstruction(t *testing.T) {
 		t.Fatalf("Digit instruction matched invalid input")
 	}
 }
-

@@ -116,18 +116,24 @@ type Pair struct{ A, B Matcher }
 
 type Precond Pair
 
-// Assuming both Matchers succeed, the prior Matcher's Result is returned
+// Assuming both Matchers succeed, the prior's Result and Static combination of
+// their Count is returned
 func (p Precond) Match(s string) Result {
 	a := p.A.Match(s)
 	if a == Failure {
 		return Failure
 	}
-	return p.B.Match(s[a.Count():])
+	b := p.B.Match(s[a.Count():])
+	if b == Failure {
+		return Failure
+	}
+	return Static{b, a.Count() + b.Count()}
 }
 
 type Postcond Pair
 
-// Assuming both Matchers succeed, the latter Matcher's Result is returned
+// Assuming both Matchers succeed, the latter Matcher's Result and Static
+// combination of their Count is returned
 func (p Postcond) Match(s string) Result {
 	a := p.A.Match(s)
 	if a == Failure {
@@ -137,7 +143,7 @@ func (p Postcond) Match(s string) Result {
 	if b == Failure {
 		return Failure
 	}
-	return a
+	return Static{a, a.Count() + b.Count()}
 }
 
 // Rules is a container that allows for recursive access of terms in a grammar.
