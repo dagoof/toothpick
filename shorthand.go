@@ -1,3 +1,5 @@
+// Toothpick is a simple peg-esque parser with an
+// emphasis on recursive definitions and composability.
 package toothpick
 
 // Create a CachedMatcher from a Matcher
